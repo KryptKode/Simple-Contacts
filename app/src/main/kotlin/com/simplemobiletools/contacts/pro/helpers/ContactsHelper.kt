@@ -1,17 +1,24 @@
 package com.simplemobiletools.contacts.pro.helpers
 
+import android.Manifest
 import android.accounts.Account
 import android.accounts.AccountManager
 import android.content.*
+import android.content.pm.PackageManager
+import android.database.Cursor
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.ContactsContract.*
 import android.provider.ContactsContract.CommonDataKinds.*
 import android.provider.MediaStore
+import android.telephony.SubscriptionManager
 import android.text.TextUtils
+import android.util.Log
 import android.util.SparseArray
+import androidx.core.app.ActivityCompat
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.commons.overloads.times
@@ -26,12 +33,53 @@ import kotlin.collections.ArrayList
 
 class ContactsHelper(val context: Context) {
     private val BATCH_SIZE = 50
+    private val ICC_URI = Uri.parse("content://icc/adn")
+    private val ICC_COLUMN_NAME = "tag"
+    private val ICC_COLUMN_NUMBER = "number"
     private var displayContactSources = ArrayList<String>()
+    private val simContactsHelper = SimContactsHelper(context, this)
 
-    fun getContacts(getAll: Boolean = false, gettingDuplicates: Boolean = false, ignoredContactSources: HashSet<String> = HashSet(), callback: (ArrayList<Contact>) -> Unit) {
+    private val TAG = "ContactsHelper"
+
+    fun getContacts(
+        getAll: Boolean = false,
+        gettingDuplicates: Boolean = false,
+        ignoredContactSources: HashSet<String> = HashSet(),
+        callback: (ArrayList<Contact>) -> Unit
+    ) {
         ensureBackgroundThread {
             val contacts = SparseArray<Contact>()
             displayContactSources = context.getVisibleContactSources()
+
+            val cursor = context.contentResolver.query(ICC_URI, null, null, null, null)
+            cursor?.use {
+                val map = mutableMapOf<String, Any?>()
+                while (cursor.moveToNext()) {
+                    val innerMap = mutableMapOf<String, Any?>()
+                    for (i in 0 until cursor.columnCount) {
+                        val key = cursor.getColumnName(i)
+
+                        when (cursor.getType(i)) {
+                            Cursor.FIELD_TYPE_INTEGER -> innerMap[key] = cursor.getLong(i)
+                            Cursor.FIELD_TYPE_FLOAT -> innerMap[key] = cursor.getFloat(i)
+                            Cursor.FIELD_TYPE_STRING -> innerMap[key] = cursor.getString(i)
+                            Cursor.FIELD_TYPE_NULL -> innerMap[key] = null
+                        }
+                    }
+
+                    map[innerMap["_id"]!!.toString()] = innerMap
+                }
+                Log.e(TAG, "getContacts: $map")
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                val subscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                    subscriptionManager.activeSubscriptionInfoList.forEach {
+                        Log.d(TAG, "activeSubscriptionInfo: $it")
+                    }
+                }
+            }
 
             if (getAll) {
                 displayContactSources = if (ignoredContactSources.isEmpty()) {
@@ -85,6 +133,16 @@ class ContactsHelper(val context: Context) {
             for (i in 0 until size) {
                 val key = groups.keyAt(i)
                 resultContacts.firstOrNull { it.contactId == key }?.groups = groups.valueAt(i)
+            }
+
+            //read sim contacts and write them if they don't exist.
+            val simContacts = simContactsHelper.getSimContacts()
+            //check if they exists in db and write the ones that are not present.
+            simContacts.forEach { simContact ->
+                if (resultContacts.find { it.getNameToDisplay() == simContact.getNameToDisplay() && it.firstPhoneNumber == simContact.firstPhoneNumber } == null) {
+                    insertContact(simContact)
+                    resultContacts.add(simContact)
+                }
             }
 
             Contact.sorting = context.config.sorting
@@ -187,8 +245,10 @@ class ContactsHelper(val context: Context) {
                 val organization = Organization("", "")
                 val websites = ArrayList<String>()
                 val ims = ArrayList<IM>()
-                val contact = Contact(id, prefix, firstName, middleName, surname, suffix, nickname, photoUri, numbers, emails, addresses,
-                    events, accountName, starred, contactId, thumbnailUri, null, notes, groups, organization, websites, ims, mimetype, ringtone)
+                val contact = Contact(
+                    id, prefix, firstName, middleName, surname, suffix, nickname, photoUri, numbers, emails, addresses,
+                    events, accountName, starred, contactId, thumbnailUri, null, notes, groups, organization, websites, ims, mimetype, ringtone
+                )
 
                 contacts.put(id, contact)
             }
@@ -733,8 +793,10 @@ class ContactsHelper(val context: Context) {
                 val organization = getOrganizations(id)[id] ?: Organization("", "")
                 val websites = getWebsites(id)[id] ?: ArrayList()
                 val ims = getIMs(id)[id] ?: ArrayList()
-                return Contact(id, prefix, firstName, middleName, surname, suffix, nickname, photoUri, number, emails, addresses, events,
-                    accountName, starred, contactId, thumbnailUri, null, notes, groups, organization, websites, ims, mimetype, ringtone)
+                return Contact(
+                    id, prefix, firstName, middleName, surname, suffix, nickname, photoUri, number, emails, addresses, events,
+                    accountName, starred, contactId, thumbnailUri, null, notes, groups, organization, websites, ims, mimetype, ringtone
+                )
             }
         }
 
@@ -819,6 +881,10 @@ class ContactsHelper(val context: Context) {
         }
     }
 
+    fun isSimCardSource(source: String): Boolean {
+        return getContactSourceType(source).contains("sim", ignoreCase = true)
+    }
+
     private fun getContactSourceType(accountName: String) = getDeviceContactSources().firstOrNull { it.name == accountName }?.type ?: ""
 
     private fun getContactProjection() = arrayOf(
@@ -870,6 +936,7 @@ class ContactsHelper(val context: Context) {
         if (contact.isPrivate()) {
             return LocalContactsHelper(context).insertOrUpdateContact(contact)
         }
+
 
         try {
             val operations = ArrayList<ContentProviderOperation>()
@@ -1077,6 +1144,10 @@ class ContactsHelper(val context: Context) {
                     withValue(GroupMembership.GROUP_ROW_ID, it.id)
                     operations.add(build())
                 }
+            }
+
+            if (isSimCardSource(contact.source)) {
+                simContactsHelper.updateSimContact(contact)
             }
 
             // favorite, ringtone
@@ -1331,13 +1402,10 @@ class ContactsHelper(val context: Context) {
 
             // storing contacts on some devices seems to be messed up and they move on Phone instead, or disappear completely
             // try storing a lighter contact version with this oldschool version too just so it wont disappear, future edits work well
-            if (getContactSourceType(contact.source).contains(".sim")) {
-                val simUri = Uri.parse("content://icc/adn")
-                ContentValues().apply {
-                    put("number", contact.phoneNumbers.firstOrNull()?.value ?: "")
-                    put("tag", contact.getNameToDisplay())
-                    context.contentResolver.insert(simUri, this)
-                }
+            Log.i(TAG, "checking if sim contact: ${contact.source}")
+            if (isSimCardSource(contact.source)) {
+                val result = simContactsHelper.insertSimContact(contact)
+                Log.i(TAG, "insertContact sim contact: $result")
             }
 
             // fullsize photo
@@ -1499,7 +1567,8 @@ class ContactsHelper(val context: Context) {
     fun getDuplicatesOfContact(contact: Contact, addOriginal: Boolean, callback: (ArrayList<Contact>) -> Unit) {
         ensureBackgroundThread {
             getContacts(true, true) { contacts ->
-                val duplicates = contacts.filter { it.id != contact.id && it.getHashToCompare() == contact.getHashToCompare() }.toMutableList() as ArrayList<Contact>
+                val duplicates =
+                    contacts.filter { it.id != contact.id && it.getHashToCompare() == contact.getHashToCompare() }.toMutableList() as ArrayList<Contact>
                 if (addOriginal) {
                     duplicates.add(contact)
                 }

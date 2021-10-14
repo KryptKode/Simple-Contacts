@@ -18,6 +18,9 @@ data class Contact(var id: Int, var prefix: String, var firstName: String, var m
         var startWithSurname = false
     }
 
+    val firstPhoneNumber: String?
+        get() = phoneNumbers.firstOrNull()?.value
+
     override fun compareTo(other: Contact): Int {
         var result = when {
             sorting and SORT_BY_FIRST_NAME != 0 -> {
@@ -154,4 +157,5 @@ data class Contact(var id: Int, var prefix: String, var firstName: String, var m
     fun isPrivate() = source == SMT_PRIVATE
 
     fun getSignatureKey() = if (photoUri.isNotEmpty()) photoUri else hashCode()
+
 }

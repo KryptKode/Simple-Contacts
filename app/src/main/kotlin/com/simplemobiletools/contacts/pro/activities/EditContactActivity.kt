@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.provider.ContactsContract.CommonDataKinds
 import android.provider.ContactsContract.CommonDataKinds.*
 import android.provider.MediaStore
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -45,6 +46,7 @@ import kotlinx.android.synthetic.main.item_edit_website.view.*
 import kotlinx.android.synthetic.main.item_event.view.*
 
 class EditContactActivity : ContactActivity() {
+    private val TAG = "EditContactActivity"
     private val INTENT_TAKE_PHOTO = 1
     private val INTENT_CHOOSE_PHOTO = 2
     private val INTENT_CROP_PHOTO = 3
@@ -196,19 +198,25 @@ class EditContactActivity : ContactActivity() {
         }
 
         val textColor = config.textColor
-        arrayOf(contact_name_image, contact_numbers_image, contact_emails_image, contact_addresses_image, contact_ims_image, contact_events_image,
-            contact_notes_image, contact_ringtone_image, contact_organization_image, contact_websites_image, contact_groups_image, contact_source_image).forEach {
+        arrayOf(
+            contact_name_image, contact_numbers_image, contact_emails_image, contact_addresses_image, contact_ims_image, contact_events_image,
+            contact_notes_image, contact_ringtone_image, contact_organization_image, contact_websites_image, contact_groups_image, contact_source_image
+        ).forEach {
             it.applyColorFilter(textColor)
         }
 
         val adjustedPrimaryColor = getAdjustedPrimaryColor()
-        arrayOf(contact_numbers_add_new, contact_emails_add_new, contact_addresses_add_new, contact_ims_add_new, contact_events_add_new,
-            contact_websites_add_new, contact_groups_add_new).forEach {
+        arrayOf(
+            contact_numbers_add_new, contact_emails_add_new, contact_addresses_add_new, contact_ims_add_new, contact_events_add_new,
+            contact_websites_add_new, contact_groups_add_new
+        ).forEach {
             it.applyColorFilter(adjustedPrimaryColor)
         }
 
-        arrayOf(contact_numbers_add_new.background, contact_emails_add_new.background, contact_addresses_add_new.background, contact_ims_add_new.background,
-            contact_events_add_new.background, contact_websites_add_new.background, contact_groups_add_new.background).forEach {
+        arrayOf(
+            contact_numbers_add_new.background, contact_emails_add_new.background, contact_addresses_add_new.background, contact_ims_add_new.background,
+            contact_events_add_new.background, contact_websites_add_new.background, contact_groups_add_new.background
+        ).forEach {
             it.applyColorFilter(textColor)
         }
 
@@ -241,6 +249,8 @@ class EditContactActivity : ContactActivity() {
             findItem(R.id.share).isVisible = contact?.id != 0
             findItem(R.id.open_with).isVisible = contact?.id != 0 && contact?.isPrivate() == false
         }
+
+        Log.w(TAG, "gotContact: $contact", )
     }
 
     private fun setupMenu() {
@@ -620,6 +630,7 @@ class EditContactActivity : ContactActivity() {
         originalContactSource = contact!!.source
         getPublicContactSource(contact!!.source) {
             contact_source.text = it
+            checkContactSource()
         }
     }
 
@@ -629,6 +640,7 @@ class EditContactActivity : ContactActivity() {
         contact = getEmptyContact()
         getPublicContactSource(contact!!.source) {
             contact_source.text = it
+            checkContactSource()
         }
 
         // if the last used contact source is not available anymore, use the first available one. Could happen at ejecting SIM card
@@ -639,9 +651,100 @@ class EditContactActivity : ContactActivity() {
                 contact?.source = originalContactSource
                 getPublicContactSource(contact!!.source) {
                     contact_source.text = it
+
                 }
             }
         }
+    }
+
+    private fun checkContactSource(){
+        if (ContactsHelper(this).isSimCardSource(contact!!.source)) {
+            setupForSimContactFields()
+        } else {
+            setupForNonSimContactFields()
+        }
+    }
+
+    private fun setupForSimContactFields() {
+        contact_photo.beInvisible()
+        arrayOf(
+            contact_change_photo,
+            contact_prefix,
+            contact_middle_name,
+            contact_surname,
+            contact_suffix,
+            contact_nickname,
+            contact_numbers_holder.contact_number_type,
+            contact_numbers_add_new,
+            contact_emails_image,
+            contact_emails_holder,
+            contact_emails_add_new,
+            contact_addresses_image,
+            contact_addresses_holder,
+            contact_addresses_add_new,
+            contact_ims_image,
+            contact_ims_holder,
+            contact_ims_add_new,
+            contact_events_image,
+            contact_events_holder,
+            contact_events_add_new,
+            contact_notes_image,
+            contact_notes,
+            contact_ringtone_image,
+            contact_ringtone,
+            contact_organization_image,
+            contact_organization_company,
+            contact_organization_job_position,
+            contact_websites_image,
+            contact_websites_holder,
+            contact_websites_add_new,
+            contact_groups_image,
+            contact_groups_holder,
+            contact_groups_add_new,
+            contact_source_image
+        ).forEach { it.beGone() }
+        contact_first_name.hint = getString(R.string.name)
+    }
+
+    private fun setupForNonSimContactFields() {
+        arrayOf(
+            contact_photo,
+            contact_change_photo,
+            contact_prefix,
+            contact_middle_name,
+            contact_surname,
+            contact_suffix,
+            contact_nickname,
+            contact_numbers_holder.contact_number_type,
+            contact_numbers_add_new,
+            contact_emails_image,
+            contact_emails_holder,
+            contact_emails_add_new,
+            contact_addresses_image,
+            contact_addresses_holder,
+            contact_addresses_add_new,
+            contact_ims_image,
+            contact_ims_holder,
+            contact_ims_add_new,
+            contact_events_image,
+            contact_events_holder,
+            contact_events_add_new,
+            contact_notes_image,
+            contact_notes,
+            contact_ringtone_image,
+            contact_ringtone,
+            contact_organization_image,
+            contact_organization_company,
+            contact_organization_job_position,
+            contact_websites_image,
+            contact_websites_holder,
+            contact_websites_add_new,
+            contact_groups_image,
+            contact_groups_holder,
+            contact_groups_add_new,
+            contact_source_image
+        ).forEach { it.beVisible() }
+        contact_first_name.hint = getString(R.string.first_name)
     }
 
     private fun setupTypePickers() {
@@ -892,6 +995,7 @@ class EditContactActivity : ContactActivity() {
             contact!!.source = if (it == getString(R.string.phone_storage_hidden)) SMT_PRIVATE else it
             getPublicContactSource(it) {
                 contact_source.text = it
+                checkContactSource()
             }
         }
     }

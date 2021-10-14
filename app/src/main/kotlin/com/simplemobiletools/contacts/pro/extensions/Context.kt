@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.ContactsContract
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.*
@@ -289,8 +290,11 @@ fun Context.getContactPublicUri(contact: Contact): Uri {
     return Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, lookupKey)
 }
 
+private const val TAG = "Context"
+
 fun Context.getVisibleContactSources(): ArrayList<String> {
     val sources = getAllContactSources()
+    Log.e(TAG, "getVisibleContactSources: $sources" )
     val ignoredContactSources = config.ignoredContactSources
     return ArrayList(sources).filter { !ignoredContactSources.contains(it.getFullIdentifier()) }
         .map { it.name }.toMutableList() as ArrayList<String>
