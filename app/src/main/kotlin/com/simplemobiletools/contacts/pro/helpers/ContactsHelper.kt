@@ -34,8 +34,6 @@ import kotlin.collections.ArrayList
 class ContactsHelper(val context: Context) {
     private val BATCH_SIZE = 50
     private val ICC_URI = Uri.parse("content://icc/adn")
-    private val ICC_COLUMN_NAME = "tag"
-    private val ICC_COLUMN_NUMBER = "number"
     private var displayContactSources = ArrayList<String>()
     private val simContactsHelper = SimContactsHelper(context, this)
 
@@ -138,12 +136,6 @@ class ContactsHelper(val context: Context) {
             //read sim contacts and write them if they don't exist.
             val simContacts = simContactsHelper.getSimContacts()
             //check if they exists in db and write the ones that are not present.
-            simContacts.forEach { simContact ->
-                if (resultContacts.find { it.getNameToDisplay() == simContact.getNameToDisplay() && it.firstPhoneNumber == simContact.firstPhoneNumber } == null) {
-                    insertContact(simContact)
-                    resultContacts.add(simContact)
-                }
-            }
 
             Contact.sorting = context.config.sorting
             Contact.startWithSurname = context.config.startNameWithSurname
@@ -1147,7 +1139,7 @@ class ContactsHelper(val context: Context) {
             }
 
             if (isSimCardSource(contact.source)) {
-                simContactsHelper.updateSimContact(contact)
+//                simContactsHelper.updateSimContact(contact)
             }
 
             // favorite, ringtone
@@ -1404,8 +1396,8 @@ class ContactsHelper(val context: Context) {
             // try storing a lighter contact version with this oldschool version too just so it wont disappear, future edits work well
             Log.i(TAG, "checking if sim contact: ${contact.source}")
             if (isSimCardSource(contact.source)) {
-                val result = simContactsHelper.insertSimContact(contact)
-                Log.i(TAG, "insertContact sim contact: $result")
+//                val result = simContactsHelper.insertSimContact(contact)
+//                Log.i(TAG, "insertContact sim contact: $result")
             }
 
             // fullsize photo

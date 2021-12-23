@@ -9,6 +9,7 @@ import com.simplemobiletools.commons.dialogs.CallConfirmationDialog
 import com.simplemobiletools.commons.dialogs.RadioGroupDialog
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.PERMISSION_CALL_PHONE
+import com.simplemobiletools.commons.helpers.PERMISSION_READ_PHONE_STATE
 import com.simplemobiletools.commons.models.RadioItem
 import com.simplemobiletools.contacts.pro.BuildConfig
 import com.simplemobiletools.contacts.pro.R

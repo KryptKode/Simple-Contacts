@@ -13,6 +13,7 @@ import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.widget.SearchView
@@ -32,6 +33,7 @@ import com.simplemobiletools.contacts.pro.dialogs.ExportContactsDialog
 import com.simplemobiletools.contacts.pro.dialogs.FilterContactSourcesDialog
 import com.simplemobiletools.contacts.pro.dialogs.ImportContactsDialog
 import com.simplemobiletools.contacts.pro.extensions.config
+import com.simplemobiletools.contacts.pro.extensions.getSimCards
 import com.simplemobiletools.contacts.pro.extensions.getTempFile
 import com.simplemobiletools.contacts.pro.extensions.handleGenericContactClick
 import com.simplemobiletools.contacts.pro.fragments.MyViewPagerFragment
@@ -49,6 +51,7 @@ import java.util.*
 class MainActivity : SimpleActivity(), RefreshContactsListener {
     private val PICK_IMPORT_SOURCE_INTENT = 1
     private val PICK_EXPORT_FILE_INTENT = 2
+    private val TAG = "MainActivity"
 
     private var isSearchOpen = false
     private var searchMenuItem: MenuItem? = null
@@ -81,7 +84,9 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
             if (it) {
                 handlePermission(PERMISSION_WRITE_CONTACTS) {
                     handlePermission(PERMISSION_GET_ACCOUNTS) {
-                        initFragments()
+                        handlePermission(PERMISSION_READ_PHONE_STATE) {
+                            initFragments()
+                        }
                     }
                 }
             } else {
@@ -403,6 +408,15 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
         main_dialpad_button.setOnClickListener {
             launchDialpad()
         }
+
+        val contactHelper = ContactsHelper(this)
+        val simContactHelper = SimContactsHelper(this, contactHelper)
+        val sims = getSimCards()
+        Log.d(TAG, "initFragments: $sims")
+        val contacts = sims.map {
+            simContactHelper.getSimContacts(it.subscriptionId)
+        }
+        Log.e(TAG, "initFragments: $contacts")
     }
 
     private fun showSortingDialog() {
@@ -517,11 +531,13 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
                 toast(R.string.no_entries_for_exporting)
             } else {
                 VcfExporter().exportContacts(this, outputStream, contacts, true) { result ->
-                    toast(when (result) {
-                        VcfExporter.ExportResult.EXPORT_OK -> R.string.exporting_successful
-                        VcfExporter.ExportResult.EXPORT_PARTIAL -> R.string.exporting_some_entries_failed
-                        else -> R.string.exporting_failed
-                    })
+                    toast(
+                        when (result) {
+                            VcfExporter.ExportResult.EXPORT_OK -> R.string.exporting_successful
+                            VcfExporter.ExportResult.EXPORT_PARTIAL -> R.string.exporting_some_entries_failed
+                            else -> R.string.exporting_failed
+                        }
+                    )
                 }
             }
         }

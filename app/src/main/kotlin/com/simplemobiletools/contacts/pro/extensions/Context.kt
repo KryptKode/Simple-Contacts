@@ -1,15 +1,20 @@
 package com.simplemobiletools.contacts.pro.extensions
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.database.Cursor
 import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.ContactsContract
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.*
@@ -21,10 +26,7 @@ import com.simplemobiletools.contacts.pro.databases.ContactsDatabase
 import com.simplemobiletools.contacts.pro.helpers.*
 import com.simplemobiletools.contacts.pro.interfaces.ContactsDao
 import com.simplemobiletools.contacts.pro.interfaces.GroupsDao
-import com.simplemobiletools.contacts.pro.models.Contact
-import com.simplemobiletools.contacts.pro.models.ContactSource
-import com.simplemobiletools.contacts.pro.models.Organization
-import com.simplemobiletools.contacts.pro.models.SocialAction
+import com.simplemobiletools.contacts.pro.models.*
 import java.io.File
 
 val Context.config: Config get() = Config.newInstance(applicationContext)
@@ -36,8 +38,10 @@ val Context.groupsDB: GroupsDao get() = ContactsDatabase.getInstance(application
 fun Context.getEmptyContact(): Contact {
     val originalContactSource = if (hasContactPermissions()) config.lastUsedContactSource else SMT_PRIVATE
     val organization = Organization("", "")
-    return Contact(0, "", "", "", "", "", "", "", ArrayList(), ArrayList(), ArrayList(), ArrayList(), originalContactSource, 0, 0, "",
-        null, "", ArrayList(), organization, ArrayList(), ArrayList(), DEFAULT_MIMETYPE, null)
+    return Contact(
+        0, "", "", "", "", "", "", "", ArrayList(), ArrayList(), ArrayList(), ArrayList(), originalContactSource, 0, 0, "",
+        null, "", ArrayList(), organization, ArrayList(), ArrayList(), DEFAULT_MIMETYPE, null
+    )
 }
 
 fun Context.viewContact(contact: Contact) {
@@ -294,7 +298,7 @@ private const val TAG = "Context"
 
 fun Context.getVisibleContactSources(): ArrayList<String> {
     val sources = getAllContactSources()
-    Log.e(TAG, "getVisibleContactSources: $sources" )
+    Log.e(TAG, "getVisibleContactSources: $sources")
     val ignoredContactSources = config.ignoredContactSources
     return ArrayList(sources).filter { !ignoredContactSources.contains(it.getFullIdentifier()) }
         .map { it.name }.toMutableList() as ArrayList<String>
@@ -377,4 +381,35 @@ fun Context.getPackageDrawable(packageName: String): Drawable? {
     }
 
     return drawable
+}
+
+fun Context.getSimCards(): List<SimCard> {
+    return if (hasPermission(PERMISSION_READ_PHONE_STATE)) {
+        Log.d(TAG, "getSimCards: hasPermission")
+        if (isMultiSimCompatible()) {
+            val sims = getSimCardsFromSubscriptions()
+            Log.d(TAG, "multi sims: $sims")
+            sims
+        } else {
+            val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            //TODO: extract string
+            listOf(SimCard.create(telephonyManager, "SIM 1"))
+        }
+    } else {
+        Log.d(TAG, "getSimCards: no permission")
+        emptyList()
+    }
+}
+
+@SuppressLint("MissingPermission")
+@RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1)
+private fun Context.getSimCardsFromSubscriptions(): List<SimCard> {
+    val subscriptionManager = getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as SubscriptionManager
+    return subscriptionManager.activeSubscriptionInfoList.map {
+        SimCard.create(it)
+    }
+}
+
+fun isMultiSimCompatible(): Boolean {
+    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1
 }
